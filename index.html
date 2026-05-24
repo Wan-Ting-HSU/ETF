@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>美股產業資金流向追蹤 | ETF Flow Dashboard</title>
+    <meta name="description" content="追蹤美股主要產業 ETF 每日資金流向，掌握市場大盤趨勢與強弱排名">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep:       #050d1a;
+            --bg-mid:        #0a1628;
+            --bg-card:       rgba(14, 26, 46, 0.75);
+            --bg-card-hover: rgba(20, 35, 60, 0.9);
+            --border-subtle: rgba(255, 255, 255, 0.06);
+            --border-bright: rgba(255, 255, 255, 0.14);
+
+            --blue-glow:     rgba(59, 130, 246, 0.45);
+            --emerald-glow:  rgba(16, 185, 129, 0.45);
+            --red-glow:      rgba(239, 68, 68, 0.45);
+
+            --text-primary:  #e2e8f0;
+            --text-secondary:#94a3b8;
+            --text-muted:    #475569;
+
+            --accent-blue:   #3b82f6;
+            --accent-teal:   #14b8a6;
+            --accent-emerald:#10b981;
+            --accent-red:    #ef4444;
+            --accent-amber:  #f59e0b;
+            --accent-purple: #8b5cf6;
+
+            --font-body:  'Inter', sans-serif;
+            --font-mono:  'JetBrains Mono', monospace;
+
+            --radius-card: 16px;
+            --shadow-card: 0 4px 24px rgba(0,0,0,0.4);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-deep);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ─── Animated Background ─── */
+        #bg-canvas {
+            position: fixed; inset: 0; z-index: 0;
+            pointer-events: none;
+        }
+        .bg-orb {
+            position: fixed; border-radius: 50%;
+            filter: blur(120px); opacity: 0.12;
+            pointer-events: none; z-index: 0;
+            animation: orbFloat 18s ease-in-out infinite alternate;
+        }
+        .orb1 { width: 700px; height: 700px; background: radial-gradient(circle, #1d4ed8, transparent); top: -200px; left: -200px; }
+        .orb2 { width: 600px; height: 600px; background: radial-gradient(circle, #065f46, transparent); bottom: -150px; right: -150px; animation-delay: -9s; }
+        .orb3 { width: 400px; height: 400px; background: radial-gradient(circle, #4c1d95, transparent); top: 40%; left: 40%; animation-delay: -4s; }
+        @keyframes orbFloat { from { transform: translate(0,0) scale(1); } to { transform: translate(40px, 30px) scale(1.1); } }
+
+        /* ─── Scrollbar ─── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-deep); }
+        ::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #2563eb; }
+
+        /* ─── Layout ─── */
+        .main-wrapper { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 24px 20px 60px; }
+
+        /* ─── Header ─── */
+        .site-header {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            flex-wrap: wrap; gap: 16px;
+            padding: 24px 28px;
+            background: rgba(10, 22, 40, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-bright);
+            border-radius: 20px;
+            margin-bottom: 28px;
+            box-shadow: 0 0 0 1px rgba(59,130,246,0.05), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .header-title h1 {
+            font-size: 1.8rem; font-weight: 800; letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #60a5fa 0%, #34d399 60%, #a78bfa 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .header-title p { color: var(--text-secondary); font-size: 0.82rem; margin-top: 4px; }
+
+        .header-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .meta-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 14px; border-radius: 50px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-subtle);
+            font-size: 0.78rem; color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .meta-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-emerald); animation: pulse-dot 2s ease infinite; }
+        @keyframes pulse-dot { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:0.5; transform:scale(0.85); } }
+        .market-status-badge { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:50px; font-size:0.75rem; font-weight:600; }
+        .status-open   { background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); color:#34d399; }
+        .status-closed { background:rgba(148,163,184,0.10); border:1px solid rgba(148,163,184,0.2); color:#94a3b8; }
+        .status-after  { background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.25); color:#fbbf24; }
+        #live-clock { font-family:var(--font-mono); font-size:0.82rem; }
+        .icon-btn {
+            width:34px; height:34px; border-radius:50%; border:1px solid var(--border-subtle);
+            background:rgba(255,255,255,0.04); color:var(--text-secondary);
+            display:flex; align-items:center; justify-content:center;
+            cursor:pointer; transition:all 0.2s; font-size:0.85rem;
+        }
+        .icon-btn:hover { background:rgba(59,130,246,0.15); border-color:rgba(59,130,246,0.4); color:#60a5fa; }
+
+        /* ─── Dashboard / Flow Analysis ─── */
+        .dashboard-grid {
+            display: grid; grid-template-columns: 1fr 1fr 340px;
+            gap: 16px; margin-bottom: 28px;
+        }
+        @media(max-width:1100px){ .dashboard-grid{ grid-template-columns:1fr 1fr; } }
+        @media(max-width:700px){ .dashboard-grid{ grid-template-columns:1fr; } }
+
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-bright);
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow-card);
+            padding: 20px 22px;
+        }
+        .card-title {
+            font-size: 0.78rem; font-weight: 600; letter-spacing: 0.08em;
+            text-transform: uppercase; color: var(--text-muted);
+            display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+        }
+        .card-title-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+        /* Rankings */
+        .rank-list { display:flex; flex-direction:column; gap:8px; }
+        .rank-item {
+            display:flex; align-items:center; justify-content:space-between;
+            padding:8px 12px; border-radius:10px; gap:10px;
+            background:rgba(255,255,255,0.03); border:1px solid transparent;
+            transition:all 0.2s;
+        }
+        .rank-item:hover { background:rgba(255,255,255,0.06); border-color:var(--border-subtle); }
+        .rank-num { font-family:var(--font-mono); font-size:0.7rem; color:var(--text-muted); width:16px; text-align:right; }
+        .rank-symbol { font-family:var(--font-mono); font-size:0.85rem; font-weight:700; flex:1; }
+        .rank-bar-wrap { flex:2; height:5px; background:rgba(255,255,255,0.07); border-radius:3px; overflow:hidden; }
+        .rank-bar { height:100%; border-radius:3px; transition:width 0.8s ease; }
+        .rank-pct { font-family:var(--font-mono); font-size:0.82rem; font-weight:600; min-width:52px; text-align:right; }
+
+        /* Sector Heatmap */
+        .sector-heat-list { display:flex; flex-direction:column; gap:9px; }
+        .sector-heat-item { display:flex; align-items:center; gap:10px; }
+        .sector-heat-label { font-size:0.75rem; color:var(--text-secondary); min-width:80px; }
+        .sector-heat-bar-wrap { flex:1; height:8px; background:rgba(255,255,255,0.07); border-radius:4px; overflow:hidden; }
+        .sector-heat-bar { height:100%; border-radius:4px; transition:width 1s ease; }
+        .sector-heat-pct { font-family:var(--font-mono); font-size:0.75rem; min-width:46px; text-align:right; }
+
+        /* Sentiment Gauge */
+        .gauge-wrap { display:flex; flex-direction:column; align-items:center; }
+        .gauge-svg { width:200px; height:115px; overflow:visible; }
+        .gauge-label { font-size:1.6rem; font-weight:800; font-family:var(--font-mono); text-align:center; margin-top:-8px; }
+        .gauge-sublabel { font-size:0.8rem; color:var(--text-secondary); text-align:center; }
+        .gauge-scale { display:flex; justify-content:space-between; width:200px; font-size:0.65rem; color:var(--text-muted); margin-top:4px; }
+        .bull-bear-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; margin-top:14px; }
+        .bull-bear-cell { text-align:center; padding:8px; border-radius:10px; }
+        .bull-cell { background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); }
+        .bear-cell { background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); }
+        .bull-bear-val { font-family:var(--font-mono); font-size:1.1rem; font-weight:700; }
+        .bull-bear-name { font-size:0.68rem; color:var(--text-secondary); margin-top:2px; }
+
+        /* ─── Section Headers ─── */
+        .section-header {
+            display:flex; align-items:center; gap:10px;
+            padding-bottom:12px; border-bottom:1px solid var(--border-subtle);
+            margin-bottom:18px;
+        }
+        .section-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:0.85rem; }
+        .section-title { font-size:1rem; font-weight:700; }
+        .section-subtitle { font-size:0.75rem; color:var(--text-muted); }
+
+        /* ─── ETF Grid ─── */
+        .categories-wrap { display:flex; flex-direction:column; gap:32px; }
+        .etf-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; }
+
+        /* ─── ETF Card ─── */
+        .etf-card {
+            position:relative; overflow:hidden;
+            background:var(--bg-card);
+            backdrop-filter:blur(14px);
+            border:1px solid var(--border-bright);
+            border-radius:var(--radius-card);
+            padding:18px 18px 16px;
+            cursor:pointer;
+            transition:transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+        }
+        .etf-card::before {
+            content:''; position:absolute; inset:0; border-radius:var(--radius-card);
+            background:radial-gradient(circle at 70% 20%, var(--card-glow,rgba(59,130,246,0.08)), transparent 65%);
+            opacity:0; transition:opacity 0.3s;
+        }
+        .etf-card:hover { transform:translateY(-4px) scale(1.01); background:var(--bg-card-hover); }
+        .etf-card:hover::before { opacity:1; }
+        .etf-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px var(--card-border-glow, rgba(59,130,246,0.3)); }
+
+        .card-bg-icon {
+            position:absolute; right:-10px; top:-10px;
+            font-size:5.5rem; opacity:0.04;
+            pointer-events:none;
+            transition:opacity 0.3s, transform 0.3s;
+        }
+        .etf-card:hover .card-bg-icon { opacity:0.09; transform:scale(1.1) rotate(5deg); }
+
+        .card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; position:relative; z-index:1; }
+        .card-icon-wrap {
+            width:40px; height:40px; border-radius:10px;
+            display:flex; align-items:center; justify-content:center;
+            background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1);
+            font-size:1rem; flex-shrink:0;
+        }
+        .card-symbol-block { flex:1; margin-left:10px; }
+        .card-symbol { font-family:var(--font-mono); font-size:1.15rem; font-weight:700; letter-spacing:0.03em; line-height:1.2; }
+        .card-name { font-size:0.7rem; color:var(--text-secondary); margin-top:2px; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+        /* flow tag */
+        .flow-tag {
+            font-size:0.62rem; font-weight:700; letter-spacing:0.05em;
+            padding:2px 7px; border-radius:4px; white-space:nowrap; flex-shrink:0;
+        }
+        .flow-in  { background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.35); color:#34d399; }
+        .flow-out { background:rgba(239,68,68,0.15);  border:1px solid rgba(239,68,68,0.35);  color:#f87171; }
+        .flow-neutral { background:rgba(148,163,184,0.1); border:1px solid rgba(148,163,184,0.2); color:#94a3b8; }
+
+        /* Price */
+        .card-price-row { position:relative; z-index:1; }
+        .card-price { font-family:var(--font-mono); font-size:1.7rem; font-weight:700; line-height:1; letter-spacing:-0.02em; }
+        .card-change-pill {
+            display:inline-flex; align-items:center; gap:4px; margin-top:7px;
+            font-family:var(--font-mono); font-size:0.78rem; font-weight:600;
+            padding:3px 8px; border-radius:6px;
+        }
+        .up-pill   { background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.25); color:#34d399; }
+        .down-pill { background:rgba(239,68,68,0.12);  border:1px solid rgba(239,68,68,0.25);  color:#f87171; }
+        .flat-pill { background:rgba(148,163,184,0.1); border:1px solid rgba(148,163,184,0.2); color:#94a3b8; }
+
+        /* Sparkline */
+        .sparkline-wrap { margin-top:12px; position:relative; z-index:1; }
+        .sparkline-svg { width:100%; height:38px; display:block; }
+
+        /* Volume bar */
+        .vol-row { display:flex; align-items:center; gap:8px; margin-top:8px; position:relative; z-index:1; }
+        .vol-label { font-size:0.62rem; color:var(--text-muted); min-width:26px; }
+        .vol-bar-wrap { flex:1; height:3px; background:rgba(255,255,255,0.07); border-radius:2px; overflow:hidden; }
+        .vol-bar { height:100%; border-radius:2px; background:rgba(148,163,184,0.4); transition:width 0.8s ease; }
+        .vol-val  { font-family:var(--font-mono); font-size:0.62rem; color:var(--text-muted); }
+
+        /* ─── Loading ─── */
+        .loading-screen {
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            padding:80px 20px;
+        }
+        .spinner-ring {
+            width:48px; height:48px; border-radius:50%;
+            border:3px solid rgba(59,130,246,0.15);
+            border-top-color:#3b82f6;
+            animation:spin 0.9s linear infinite;
+            margin-bottom:16px;
+        }
+        @keyframes spin { to { transform:rotate(360deg); } }
+
+        /* ─── Section styles ─── */
+        .etf-section { opacity:0; transform:translateY(16px); transition:opacity 0.5s ease, transform 0.5s ease; }
+        .etf-section.visible { opacity:1; transform:translateY(0); }
+
+        /* ─── Modal ─── */
+        .modal-backdrop {
+            position:fixed; inset:0; z-index:100;
+            background:rgba(5,13,26,0.8); backdrop-filter:blur(8px);
+            display:flex; align-items:center; justify-content:flex-end;
+            opacity:0; pointer-events:none;
+            transition:opacity 0.3s ease;
+        }
+        .modal-backdrop.open { opacity:1; pointer-events:auto; }
+        .modal-panel {
+            width:min(520px, 100vw); height:100vh; overflow-y:auto;
+            background:rgba(10,22,40,0.97);
+            backdrop-filter:blur(24px);
+            border-left:1px solid var(--border-bright);
+            box-shadow:-20px 0 60px rgba(0,0,0,0.6);
+            transform:translateX(100%); transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);
+            display:flex; flex-direction:column;
+        }
+        .modal-backdrop.open .modal-panel { transform:translateX(0); }
+        .modal-header { padding:28px 28px 20px; border-bottom:1px solid var(--border-subtle); flex-shrink:0; }
+        .modal-close-btn {
+            position:absolute; top:20px; right:20px;
+            width:36px; height:36px; border-radius:50%; border:1px solid var(--border-subtle);
+            background:rgba(255,255,255,0.05); color:var(--text-secondary);
+            display:flex; align-items:center; justify-content:center; cursor:pointer;
+            transition:all 0.2s; font-size:0.9rem;
+        }
+        .modal-close-btn:hover { background:rgba(239,68,68,0.15); border-color:rgba(239,68,68,0.4); color:#f87171; }
+        .modal-body { padding:24px 28px; flex:1; }
+        .modal-stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:24px; }
+        .modal-stat { background:rgba(255,255,255,0.04); border:1px solid var(--border-subtle); border-radius:10px; padding:12px 14px; }
+        .modal-stat-label { font-size:0.7rem; color:var(--text-muted); margin-bottom:4px; }
+        .modal-stat-val   { font-family:var(--font-mono); font-size:1.05rem; font-weight:700; }
+        .holdings-table { width:100%; border-collapse:separate; border-spacing:0; }
+        .holdings-table th { font-size:0.7rem; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.06em; padding:10px 14px; background:rgba(255,255,255,0.03); }
+        .holdings-table td { padding:11px 14px; font-size:0.85rem; border-top:1px solid var(--border-subtle); }
+        .holdings-table tr { opacity:0; animation:rowFadeIn 0.3s ease forwards; }
+        @keyframes rowFadeIn { to { opacity:1; } }
+        .holdings-table tbody tr:hover td { background:rgba(255,255,255,0.03); }
+        .td-symbol { font-family:var(--font-mono); font-weight:700; }
+        .td-weight { font-family:var(--font-mono); color:#60a5fa; }
+
+        /* API Key Modal */
+        .apikey-backdrop {
+            position:fixed; inset:0; z-index:200;
+            background:rgba(5,13,26,0.85); backdrop-filter:blur(10px);
+            display:flex; align-items:center; justify-content:center; padding:20px;
+            opacity:0; pointer-events:none; transition:opacity 0.3s ease;
+        }
+        .apikey-backdrop.open { opacity:1; pointer-events:auto; }
+        .apikey-modal {
+            width:min(460px, 100%);
+            background:rgba(12,24,44,0.98); border:1px solid var(--border-bright);
+            border-radius:20px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,0.7);
+            transform:scale(0.95); transition:transform 0.3s ease;
+        }
+        .apikey-backdrop.open .apikey-modal { transform:scale(1); }
+        .apikey-input {
+            width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--border-bright);
+            border-radius:10px; padding:12px 16px; color:var(--text-primary);
+            font-family:var(--font-mono); font-size:0.85rem;
+            outline:none; transition:border-color 0.2s, box-shadow 0.2s;
+            margin-bottom:16px;
+        }
+        .apikey-input:focus { border-color:rgba(59,130,246,0.6); box-shadow:0 0 0 3px rgba(59,130,246,0.15); }
+        .btn { display:inline-flex; align-items:center; gap:6px; padding:10px 20px; border-radius:10px; font-size:0.85rem; font-weight:600; cursor:pointer; border:none; transition:all 0.2s; }
+        .btn-primary { background:linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff; box-shadow:0 4px 14px rgba(37,99,235,0.35); }
+        .btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(37,99,235,0.5); }
+        .btn-ghost  { background:rgba(255,255,255,0.06); color:var(--text-secondary); border:1px solid var(--border-subtle); }
+        .btn-ghost:hover  { background:rgba(255,255,255,0.1); }
+
+        /* Connection status */
+        .conn-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:50px; font-size:0.72rem; font-weight:600; cursor:pointer; }
+        .conn-live   { background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); color:#34d399; }
+        .conn-mock   { background:rgba(245,158,11,0.1);  border:1px solid rgba(245,158,11,0.25); color:#fbbf24; }
+        .conn-error  { background:rgba(239,68,68,0.1);   border:1px solid rgba(239,68,68,0.25);  color:#f87171; }
+
+        /* Number counter animation */
+        .num-anim { transition:all 0.4s ease; }
+
+        /* Separator line */
+        hr.section-divider { border:none; border-top:1px solid var(--border-subtle); margin:0; }
+    </style>
+</head>
+<body>
+    <!-- Animated background orbs -->
+    <div class="orb1 bg-orb"></div>
+    <div class="orb2 bg-orb"></div>
+    <div class="orb3 bg-orb"></div>
+
+    <div class="main-wrapper">
+        <!-- ═══ HEADER ═══ -->
+        <header class="site-header">
+            <div class="header-title">
+                <h1><i class="fas fa-chart-line" style="background:linear-gradient(135deg,#60a5fa,#34d399);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;"></i>&nbsp;美股產業資金流向</h1>
+                <p>追蹤主要產業 ETF 每日變化，掌握大盤資金動向與強弱趨勢</p>
+            </div>
+            <div class="header-meta">
+                <div id="market-status-badge" class="market-status-badge status-closed">
+                    <i class="fas fa-circle" style="font-size:7px"></i> <span id="market-status-text">判斷中...</span>
+                </div>
+                <div class="meta-pill">
+                    <i class="fas fa-clock" style="color:var(--accent-teal);font-size:11px"></i>
+                    <span id="live-clock">--:--:--</span>
+                    <span style="color:var(--text-muted)">ET</span>
+                </div>
+                <div id="conn-status-wrap"></div>
+                <button class="icon-btn" onclick="fetchAllData()" title="立即更新"><i class="fas fa-rotate-right"></i></button>
+                <button class="icon-btn" onclick="openApiKeyModal()" title="設定 API Key" style="color:#fbbf24;border-color:rgba(245,158,11,0.3)"><i class="fas fa-key"></i></button>
+            </div>
+        </header>
+
+        <!-- ═══ DASHBOARD ═══ -->
+        <div id="dashboard-section" class="dashboard-grid" style="display:none">
+            <!-- Top 5 強勢 -->
+            <div class="glass-card">
+                <div class="card-title"><span class="card-title-dot" style="background:#34d399"></span>資金流入 Top 5</div>
+                <div id="top5-list" class="rank-list"></div>
+            </div>
+            <!-- Bottom 5 弱勢 -->
+            <div class="glass-card">
+                <div class="card-title"><span class="card-title-dot" style="background:#f87171"></span>資金流出 Bottom 5</div>
+                <div id="bot5-list" class="rank-list"></div>
+            </div>
+            <!-- Sentiment Gauge -->
+            <div class="glass-card" style="grid-row:span 1">
+                <div class="card-title"><span class="card-title-dot" style="background:#a78bfa"></span>市場多空情緒</div>
+                <div class="gauge-wrap">
+                    <svg class="gauge-svg" viewBox="0 0 200 115" fill="none">
+                        <defs>
+                            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%"   stop-color="#ef4444"/>
+                                <stop offset="50%"  stop-color="#f59e0b"/>
+                                <stop offset="100%" stop-color="#10b981"/>
+                            </linearGradient>
+                        </defs>
+                        <!-- Track -->
+                        <path d="M20 100 A80 80 0 0 1 180 100" stroke="rgba(255,255,255,0.08)" stroke-width="12" stroke-linecap="round" fill="none"/>
+                        <!-- Fill arc -->
+                        <path id="gauge-fill" d="M20 100 A80 80 0 0 1 180 100" stroke="url(#gaugeGrad)" stroke-width="12" stroke-linecap="round" fill="none"
+                              stroke-dasharray="251" stroke-dashoffset="125" style="transition:stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)"/>
+                        <!-- Needle -->
+                        <g id="gauge-needle" style="transform-origin:100px 100px;transform:rotate(-90deg);transition:transform 1.2s cubic-bezier(0.4,0,0.2,1)">
+                            <line x1="100" y1="100" x2="100" y2="28" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                            <circle cx="100" cy="100" r="6" fill="white" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+                        </g>
+                        <!-- Labels -->
+                        <text x="14"  y="115" fill="#f87171"  font-size="9" font-family="Inter">空頭</text>
+                        <text x="160" y="115" fill="#34d399"  font-size="9" font-family="Inter">多頭</text>
+                        <text x="88"  y="60"  fill="#f59e0b"  font-size="8" font-family="Inter">中性</text>
+                    </svg>
+                    <div id="gauge-score" class="gauge-label" style="color:#f59e0b">50</div>
+                    <div id="gauge-label" class="gauge-sublabel">計算中...</div>
+                    <div class="bull-bear-row">
+                        <div class="bull-bear-cell bull-cell">
+                            <div id="bull-count" class="bull-bear-val" style="color:#34d399">-</div>
+                            <div class="bull-bear-name">上漲 ETF</div>
+                        </div>
+                        <div class="bull-bear-cell bear-cell">
+                            <div id="bear-count" class="bull-bear-val" style="color:#f87171">-</div>
+                            <div class="bull-bear-name">下跌 ETF</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Sector Heatmap (full width row) -->
+            <div class="glass-card" style="grid-column:1/-1">
+                <div class="card-title"><span class="card-title-dot" style="background:#60a5fa"></span>各板塊平均強弱熱力圖</div>
+                <div id="sector-heat-list" class="sector-heat-list"></div>
+            </div>
+        </div>
+
+        <!-- ═══ ETF CATEGORIES ═══ -->
+        <div id="loading-screen" class="loading-screen">
+            <div class="spinner-ring"></div>
+            <p style="color:var(--text-secondary);font-size:0.88rem">正在獲取市場數據...</p>
+        </div>
+        <div id="categories-wrap" class="categories-wrap" style="display:none"></div>
+    </div>
+
+    <!-- ═══ ETF DETAIL MODAL ═══ -->
+    <div id="modal-backdrop" class="modal-backdrop" onclick="handleModalBackdropClick(event)">
+        <div id="modal-panel" class="modal-panel" role="dialog" aria-modal="true">
+            <div class="modal-header" style="position:relative">
+                <button class="modal-close-btn" onclick="closeModal()"><i class="fas fa-xmark"></i></button>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+                    <div id="modal-icon-wrap" class="card-icon-wrap" style="width:44px;height:44px"></div>
+                    <div>
+                        <div style="display:flex;align-items:center;gap:8px">
+                            <span id="modal-symbol" class="card-symbol" style="font-size:1.4rem"></span>
+                            <span id="modal-change-badge" class="card-change-pill"></span>
+                        </div>
+                        <p id="modal-name" style="color:var(--text-secondary);font-size:0.8rem;margin-top:2px"></p>
+                    </div>
+                </div>
+                <div id="modal-price" style="font-family:var(--font-mono);font-size:2.4rem;font-weight:800;letter-spacing:-0.03em;margin-top:4px"></div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-stat-grid">
+                    <div class="modal-stat">
+                        <div class="modal-stat-label">今日漲跌</div>
+                        <div id="modal-change-abs" class="modal-stat-val"></div>
+                    </div>
+                    <div class="modal-stat">
+                        <div class="modal-stat-label">相對 SPY 強弱</div>
+                        <div id="modal-vs-spy" class="modal-stat-val"></div>
+                    </div>
+                    <div class="modal-stat">
+                        <div class="modal-stat-label">資金流向判斷</div>
+                        <div id="modal-flow" class="modal-stat-val"></div>
+                    </div>
+                    <div class="modal-stat">
+                        <div class="modal-stat-label">板塊排名</div>
+                        <div id="modal-rank" class="modal-stat-val"></div>
+                    </div>
+                </div>
+                <h3 style="font-size:0.78rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+                    <i class="fas fa-list-ul" style="color:#60a5fa"></i> 主要成分股 (Top Holdings)
+                </h3>
+                <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);border-radius:12px;overflow:hidden">
+                    <table class="holdings-table">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left">代號</th>
+                                <th style="text-align:left">公司名稱</th>
+                                <th style="text-align:right">權重估計</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdings-body"></tbody>
+                    </table>
+                </div>
+                <p style="font-size:0.7rem;color:var(--text-muted);margin-top:10px;text-align:right">* 成分股資料為靜態主要標的，不代表即時完整權重</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ API KEY MODAL ═══ -->
+    <div id="apikey-backdrop" class="apikey-backdrop" onclick="handleApiBackdropClick(event)">
+        <div class="apikey-modal">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+                <div style="width:38px;height:38px;border-radius:10px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:center;color:#fbbf24">
+                    <i class="fas fa-key"></i>
+                </div>
+                <h2 style="font-size:1.05rem;font-weight:700">設定 FMP API Key</h2>
+            </div>
+
+            <!-- CORS 警告（只在 file:// 下顯示） -->
+            <div id="cors-warning" style="display:none;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:0.78rem;line-height:1.7;color:#fca5a5">
+                <div style="font-weight:700;margin-bottom:4px"><i class="fas fa-triangle-exclamation" style="margin-right:6px"></i>偵測到 <code style="background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:4px">file://</code> 協議 — API 無法直接呼叫</div>
+                瀏覽器的安全政策會封鎖從本機檔案直接呼叫外部 API（CORS 限制）。<br>
+                <strong style="color:#fbbf24">解決方法：用本機伺服器開啟此頁面：</strong><br><br>
+                <div style="background:rgba(0,0,0,0.35);border-radius:6px;padding:8px 12px;font-family:monospace;font-size:0.8rem;color:#e2e8f0">
+                    1. 在檔案目錄開啟 <strong>start.bat</strong><br>
+                    2. 瀏覽器自動開啟 <strong style="color:#60a5fa">http://localhost:8080</strong><br>
+                    3. 再輸入 API Key 即可正常使用
+                </div>
+            </div>
+
+            <p style="font-size:0.8rem;color:var(--text-secondary);line-height:1.7;margin-bottom:16px">
+                使用 <a href="https://financialmodelingprep.com/developer/docs/" target="_blank" style="color:#60a5fa;text-decoration:none;font-weight:600">Financial Modeling Prep (FMP)</a> API 取得即時報價。<br>
+                免費方案即可使用。取得 Key 後貼入下方即可啟用真實數據。
+            </p>
+            <input id="apikey-input" type="text" class="apikey-input" placeholder="貼上您的 FMP API Key...">
+            <div style="display:flex;justify-content:flex-end;gap:10px">
+                <button class="btn btn-ghost" onclick="closeApiKeyModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveApiKey()"><i class="fas fa-check"></i> 儲存並重新連線</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   DATA DEFINITIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+const categoryDefs = [
+    { id:'core',      title:'大盤與核心',       icon:'fa-globe-americas', color:'text-purple-400', glowColor:'rgba(167,139,250,0.3)' },
+    { id:'tech',      title:'科技與算力產業',   icon:'fa-microchip',      color:'text-blue-400',   glowColor:'rgba(96,165,250,0.3)'  },
+    { id:'power',     title:'電力與能源轉型',   icon:'fa-bolt',           color:'text-yellow-400', glowColor:'rgba(251,191,36,0.3)'  },
+    { id:'mining',    title:'礦業與原物料',     icon:'fa-mountain',       color:'text-stone-400',  glowColor:'rgba(168,162,158,0.3)' },
+    { id:'space',     title:'航太與衛星通訊',   icon:'fa-satellite',      color:'text-indigo-400', glowColor:'rgba(129,140,248,0.3)' },
+    { id:'defensive', title:'傳統與防禦板塊',   icon:'fa-shield-halved',  color:'text-emerald-400',glowColor:'rgba(52,211,153,0.3)'  }
+];
+
+const categoryColors = {
+    core:      { text:'#a78bfa', bg:'rgba(167,139,250,0.12)', border:'rgba(167,139,250,0.25)' },
+    tech:      { text:'#60a5fa', bg:'rgba(96,165,250,0.12)',  border:'rgba(96,165,250,0.25)'  },
+    power:     { text:'#fbbf24', bg:'rgba(251,191,36,0.12)',  border:'rgba(251,191,36,0.25)'  },
+    mining:    { text:'#a8a29e', bg:'rgba(168,162,158,0.12)', border:'rgba(168,162,158,0.25)' },
+    space:     { text:'#818cf8', bg:'rgba(129,140,248,0.12)', border:'rgba(129,140,248,0.25)' },
+    defensive: { text:'#34d399', bg:'rgba(52,211,153,0.12)',  border:'rgba(52,211,153,0.25)'  }
+};
+
+const etfList = [
+    { symbol:'SPY',  name:'S&P 500 大盤',          category:'core',      icon:'fa-chart-line',      iconColor:'#a78bfa', holdings:[{symbol:'AAPL',name:'Apple Inc.',weight:'~7%'},{symbol:'MSFT',name:'Microsoft Corp.',weight:'~6%'},{symbol:'NVDA',name:'NVIDIA Corp.',weight:'~5%'},{symbol:'AMZN',name:'Amazon.com Inc.',weight:'~3%'},{symbol:'META',name:'Meta Platforms',weight:'~2%'}] },
+    { symbol:'QQQ',  name:'納斯達克100 科技核心',   category:'core',      icon:'fa-laptop-code',     iconColor:'#818cf8', holdings:[{symbol:'AAPL',name:'Apple Inc.',weight:'~11%'},{symbol:'MSFT',name:'Microsoft Corp.',weight:'~10%'},{symbol:'NVDA',name:'NVIDIA Corp.',weight:'~8%'},{symbol:'AMZN',name:'Amazon.com Inc.',weight:'~5%'},{symbol:'META',name:'Meta Platforms',weight:'~4%'}] },
+    { symbol:'SMH',  name:'費城半導體 晶片硬體',    category:'tech',      icon:'fa-memory',          iconColor:'#22d3ee', holdings:[{symbol:'NVDA',name:'NVIDIA Corp.',weight:'19%'},{symbol:'TSM',name:'Taiwan Semiconductor',weight:'11%'},{symbol:'COHR',name:'Coherent Corp.',weight:'3%'},{symbol:'LITE',name:'Lumentum Holdings',weight:'2%'},{symbol:'AAOI',name:'Applied Optoelectronics',weight:'2%'}] },
+    { symbol:'AIQ',  name:'AI 與大數據 軟體應用',   category:'tech',      icon:'fa-brain',           iconColor:'#c084fc', holdings:[{symbol:'NVDA',name:'NVIDIA Corp.',weight:'~4%'},{symbol:'META',name:'Meta Platforms',weight:'~4%'},{symbol:'GOOGL',name:'Alphabet Inc.',weight:'~3%'},{symbol:'CRM',name:'Salesforce',weight:'~3%'},{symbol:'MSFT',name:'Microsoft Corp.',weight:'~3%'}] },
+    { symbol:'CIBR', name:'網路資安',               category:'tech',      icon:'fa-lock',            iconColor:'#93c5fd', holdings:[{symbol:'CRWD',name:'CrowdStrike',weight:'~6%'},{symbol:'PANW',name:'Palo Alto Networks',weight:'~6%'},{symbol:'CSCO',name:'Cisco Systems',weight:'~5%'},{symbol:'FTNT',name:'Fortinet',weight:'~4%'},{symbol:'OKTA',name:'Okta Inc.',weight:'~4%'}] },
+    { symbol:'XLU',  name:'公用事業 電網基礎',      category:'power',     icon:'fa-plug',            iconColor:'#fde68a', holdings:[{symbol:'NEE',name:'NextEra Energy',weight:'~13%'},{symbol:'SO',name:'Southern Company',weight:'~8%'},{symbol:'DUK',name:'Duke Energy',weight:'~7%'},{symbol:'SRE',name:'Sempra',weight:'~5%'},{symbol:'AEP',name:'American Electric Power',weight:'~4%'}] },
+    { symbol:'URA',  name:'鈾礦核能 AI基載電力',    category:'power',     icon:'fa-atom',            iconColor:'#4ade80', holdings:[{symbol:'CCJ',name:'Cameco Corp.',weight:'~23%'},{symbol:'KAP',name:'Kazatomprom',weight:'~10%'},{symbol:'NXE',name:'NexGen Energy',weight:'~5%'},{symbol:'UUUU',name:'Energy Fuels',weight:'~4%'},{symbol:'DNN',name:'Denison Mines',weight:'~3%'}] },
+    { symbol:'ICLN', name:'全球乾淨能源',           category:'power',     icon:'fa-leaf',            iconColor:'#34d399', holdings:[{symbol:'BE',name:'Bloom Energy',weight:'8%'},{symbol:'FSLR',name:'First Solar',weight:'7%'},{symbol:'ENPH',name:'Enphase Energy',weight:'5%'},{symbol:'VWS',name:'Vestas Wind',weight:'4%'},{symbol:'PLUG',name:'Plug Power',weight:'3%'}] },
+    { symbol:'XLE',  name:'傳統能源 石油天然氣',    category:'power',     icon:'fa-gas-pump',        iconColor:'#fb923c', holdings:[{symbol:'XOM',name:'Exxon Mobil Corp.',weight:'~22%'},{symbol:'CVX',name:'Chevron Corp.',weight:'~18%'},{symbol:'EOG',name:'EOG Resources',weight:'~4%'},{symbol:'COP',name:'ConocoPhillips',weight:'~4%'},{symbol:'SLB',name:'Schlumberger N.V.',weight:'~4%'}] },
+    { symbol:'XME',  name:'金屬與礦業',             category:'mining',    icon:'fa-cubes',           iconColor:'#d6d3d1', holdings:[{symbol:'CLF',name:'Cleveland-Cliffs',weight:'~5%'},{symbol:'X',name:'United States Steel',weight:'~5%'},{symbol:'STLD',name:'Steel Dynamics',weight:'~4%'},{symbol:'NUE',name:'Nucor Corp.',weight:'~4%'},{symbol:'FCX',name:'Freeport-McMoRan',weight:'~4%'}] },
+    { symbol:'COPX', name:'銅礦開採 電氣化關鍵',    category:'mining',    icon:'fa-coins',           iconColor:'#fb923c', holdings:[{symbol:'FCX',name:'Freeport-McMoRan',weight:'~6%'},{symbol:'SCCO',name:'Southern Copper',weight:'~5%'},{symbol:'TECK',name:'Teck Resources',weight:'~5%'},{symbol:'ANTO',name:'Antofagasta plc',weight:'~5%'},{symbol:'BHP',name:'BHP Group',weight:'~4%'}] },
+    { symbol:'XLB',  name:'基礎化學與原物料',       category:'mining',    icon:'fa-flask',           iconColor:'#ca8a04', holdings:[{symbol:'LIN',name:'Linde plc',weight:'~20%'},{symbol:'SHW',name:'Sherwin-Williams',weight:'~7%'},{symbol:'ECL',name:'Ecolab Inc.',weight:'~6%'},{symbol:'APD',name:'Air Products',weight:'~5%'},{symbol:'NEM',name:'Newmont Corp.',weight:'~4%'}] },
+    { symbol:'ARKX', name:'太空探索與創新',         category:'space',     icon:'fa-rocket',          iconColor:'#818cf8', holdings:[{symbol:'PL',name:'Planet Labs',weight:'8%'},{symbol:'TRMB',name:'Trimble Inc.',weight:'7%'},{symbol:'KTOS',name:'Kratos Defense',weight:'6%'},{symbol:'LHX',name:'L3Harris Tech',weight:'5%'},{symbol:'IRDM',name:'Iridium Comm.',weight:'5%'}] },
+    { symbol:'UFO',  name:'航太與衛星通訊',         category:'space',     icon:'fa-satellite-dish',  iconColor:'#94a3b8', holdings:[{symbol:'SIRI',name:'Sirius XM Holdings',weight:'~6%'},{symbol:'IRDM',name:'Iridium Comm.',weight:'~5%'},{symbol:'LMT',name:'Lockheed Martin',weight:'~5%'},{symbol:'GSAT',name:'Globalstar',weight:'~4%'},{symbol:'VSAT',name:'Viasat Inc.',weight:'~4%'}] },
+    { symbol:'XLF',  name:'金融板塊',               category:'defensive', icon:'fa-building-columns',iconColor:'#fbbf24', holdings:[{symbol:'BRK.B',name:'Berkshire Hathaway',weight:'~13%'},{symbol:'JPM',name:'JPMorgan Chase & Co.',weight:'~9%'},{symbol:'V',name:'Visa Inc.',weight:'~7%'},{symbol:'MA',name:'Mastercard Inc.',weight:'~6%'}] },
+    { symbol:'XLV',  name:'醫療保健',               category:'defensive', icon:'fa-heart-pulse',     iconColor:'#f87171', holdings:[{symbol:'UNH',name:'UnitedHealth Group',weight:'~9%'},{symbol:'JNJ',name:'Johnson & Johnson',weight:'~8%'},{symbol:'LLY',name:'Eli Lilly and Co.',weight:'~6%'},{symbol:'MRK',name:'Merck & Co.',weight:'~5%'}] },
+    { symbol:'XLI',  name:'工業製造',               category:'defensive', icon:'fa-industry',        iconColor:'#94a3b8', holdings:[{symbol:'UNP',name:'Union Pacific Corp.',weight:'~5%'},{symbol:'HON',name:'Honeywell Int.',weight:'~4%'},{symbol:'UPS',name:'United Parcel Service',weight:'~4%'},{symbol:'CAT',name:'Caterpillar Inc.',weight:'~4%'}] },
+    { symbol:'XLY',  name:'非必需消費 零售汽車',    category:'defensive', icon:'fa-shopping-cart',   iconColor:'#f472b6', holdings:[{symbol:'AMZN',name:'Amazon.com',weight:'~24%'},{symbol:'TSLA',name:'Tesla Inc.',weight:'~18%'},{symbol:'HD',name:'The Home Depot',weight:'~9%'}] },
+    { symbol:'XLP',  name:'必需消費 民生用品',       category:'defensive', icon:'fa-basket-shopping', iconColor:'#4ade80', holdings:[{symbol:'PG',name:'Procter & Gamble',weight:'~15%'},{symbol:'PEP',name:'PepsiCo Inc.',weight:'~10%'},{symbol:'KO',name:'The Coca-Cola Co.',weight:'~9%'}] }
+];
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   STATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+let marketData = {};
+let isUsingMockData = false;
+let authError = false;
+let lastApiError = null;
+let mockDataState = null;
+let sparklineData = {}; // stored sparkline point arrays per symbol
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CLOCK & MARKET STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function updateClock() {
+    const now = new Date();
+    // US Eastern time offset (handle DST approximately)
+    const etOffset = isDST(now) ? -4 : -5;
+    const et = new Date(now.getTime() + (now.getTimezoneOffset() + etOffset*60)*60000);
+    document.getElementById('live-clock').textContent = et.toTimeString().slice(0,8);
+    updateMarketStatus(et);
+}
+function isDST(d) {
+    const jan = new Date(d.getFullYear(), 0, 1).getTimezoneOffset();
+    const jul = new Date(d.getFullYear(), 6, 1).getTimezoneOffset();
+    return d.getTimezoneOffset() < Math.max(jan, jul);
+}
+function updateMarketStatus(et) {
+    const badge = document.getElementById('market-status-badge');
+    const label = document.getElementById('market-status-text');
+    const h = et.getHours(), m = et.getMinutes(), day = et.getDay();
+    const mins = h*60+m;
+    const isWeekday = day >= 1 && day <= 5;
+    badge.className = 'market-status-badge ';
+    if (!isWeekday || mins < 570 || mins >= 960) {
+        badge.classList.add('status-closed'); label.textContent = '休市';
+    } else if (mins >= 570 && mins < 570+30) {
+        badge.classList.add('status-open'); label.textContent = '即將開市';
+    } else if (mins >= 570 && mins < 960) {
+        badge.classList.add('status-open'); label.textContent = '交易中';
+    }
+    if (mins >= 960 && mins < 1200 && isWeekday) {
+        badge.className = 'market-status-badge status-after'; label.textContent = '盤後交易';
+    }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SPARKLINE GENERATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function initSparkline(symbol, changePercent) {
+    if (sparklineData[symbol]) return;
+    // generate 20 points simulating intraday movement ending at changePercent
+    const pts = [];
+    let val = 0;
+    for (let i = 0; i < 20; i++) {
+        const noise = (Math.random()-0.5)*0.4;
+        const drift = changePercent/20 * i * 0.05;
+        val += noise + drift;
+        pts.push(val);
+    }
+    // normalize to end near changePercent sign
+    pts.push(changePercent);
+    sparklineData[symbol] = pts;
+}
+function appendSparklinePoint(symbol, changePercent) {
+    if (!sparklineData[symbol]) { initSparkline(symbol, changePercent); return; }
+    const pts = sparklineData[symbol];
+    const noise = (Math.random()-0.5)*0.15;
+    pts.push(changePercent + noise);
+    if (pts.length > 30) pts.shift();
+}
+function renderSparklineSVG(symbol, isPositive) {
+    const pts = sparklineData[symbol] || [];
+    if (pts.length < 2) return '';
+    const W = 220, H = 38, pad = 4;
+    const min = Math.min(...pts), max = Math.max(...pts);
+    const range = (max - min) || 1;
+    const xs = pts.map((_,i) => pad + (i/(pts.length-1))*(W-pad*2));
+    const ys = pts.map(p => H - pad - ((p-min)/range)*(H-pad*2));
+    const pathD = xs.map((x,i) => (i===0?`M${x},${ys[i]}`:`L${x},${ys[i]}`)).join(' ');
+    const fillD = pathD + ` L${xs[xs.length-1]},${H} L${xs[0]},${H} Z`;
+    const color  = isPositive ? '#10b981' : '#ef4444';
+    const fillId = `sf-${symbol}`;
+    return `<svg class="sparkline-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+            <linearGradient id="${fillId}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="${color}" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+            </linearGradient>
+        </defs>
+        <path d="${fillD}" fill="url(#${fillId})"/>
+        <path d="${pathD}" stroke="${color}" stroke-width="1.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>`;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   MOCK DATA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+const BASE_PRICES = {
+    SPY:440.50,QQQ:440.50,SMH:235.20,AIQ:35.40,CIBR:62.10,
+    XLU:72.30,URA:31.50,ICLN:14.20,XLE:92.40,
+    XME:60.80,COPX:45.90,XLB:91.20,
+    ARKX:16.50,UFO:18.20,
+    XLF:41.20,XLV:145.30,XLY:185.60,XLP:76.80,XLI:124.50
+};
+function generateMockData(symbols) {
+    if (!mockDataState) {
+        mockDataState = {};
+        symbols.forEach(s => {
+            const p = BASE_PRICES[s] || 100;
+            mockDataState[s] = { price:p, change:0, changePercent:0 };
+        });
+    }
+    const results = {};
+    symbols.forEach(sym => {
+        const base = mockDataState[sym] || { price:100, change:0, changePercent:0 };
+        const vol = base.price * 0.003;
+        const delta = (Math.random()*vol*2)-vol;
+        const newPrice = Math.max(1, base.price + delta);
+        const newChange = base.change + delta;
+        const openPrice = base.price - base.change;
+        const newPct = openPrice > 0 ? (newChange/openPrice)*100 : 0;
+        results[sym] = { price:+newPrice.toFixed(2), change:+newChange.toFixed(2), changePercent:+newPct.toFixed(2) };
+        mockDataState[sym] = results[sym];
+    });
+    return results;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   API FETCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+const IS_FILE_PROTOCOL = location.protocol === 'file:';
+
+async function fetchRealTimeQuote(symbols) {
+    const apiKey = localStorage.getItem('fmp_api_key');
+    if (!apiKey) {
+        isUsingMockData = true; authError = true;
+        lastApiError = '尚未設定 API Key';
+        return generateMockData(symbols);
+    }
+
+    // file:// 協議下瀏覽器會封鎖跨來源請求（CORS），直接 fallback
+    if (IS_FILE_PROTOCOL) {
+        isUsingMockData = true; authError = true;
+        lastApiError = '請用本機伺服器（http://localhost）開啟此頁面，file:// 協議無法呼叫外部 API';
+        showToast('⚠️ 請用 start.bat 啟動本機伺服器，file:// 協議無法使用 API', 'warn');
+        return generateMockData(symbols);
+    }
+
+    const url = `https://financialmodelingprep.com/api/v3/quote/${symbols.join(',')}?apikey=${apiKey}`;
+    try {
+        const res = await fetch(url);
+
+        // 403 通常是 CORS 或舊版端點問題
+        if (res.status === 403) {
+            isUsingMockData = true; authError = false;
+            lastApiError = 'HTTP 403 — 伺服器拒絕請求，請確認是否從 localhost 開啟';
+            showToast('HTTP 403 — 請確認從本機伺服器開啟頁面', 'error');
+            return generateMockData(symbols);
+        }
+
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        // FMP 回傳錯誤物件（非陣列）時，表示 Key 無效或超過額度
+        if (!Array.isArray(data)) {
+            const errMsg = data['Error Message'] || data['message'] || JSON.stringify(data);
+            console.error('[FMP API] 錯誤回應:', errMsg);
+            isUsingMockData = true;
+            authError = true; // ← Key 問題，顯示「需設定 API」
+            lastApiError = errMsg;
+            showToast(`API 錯誤：${errMsg}`, 'error');
+            return generateMockData(symbols);
+        }
+
+        // 回傳空陣列 → 可能是免費方案批次限制，嘗試拆分請求
+        if (data.length === 0) {
+            console.warn('[FMP API] 批次回傳空陣列，改用單筆查詢...');
+            return fetchIndividually(symbols, apiKey);
+        }
+
+        // 成功：整理結果，允許部分符號找不到資料
+        const results = {};
+        data.forEach(item => {
+            if (item && item.symbol) {
+                results[item.symbol] = {
+                    price: item.price ?? 0,
+                    change: item.change ?? 0,
+                    changePercent: item.changesPercentage ?? 0
+                };
+            }
+        });
+        isUsingMockData = false; authError = false; lastApiError = null;
+        console.log(`[FMP API] 成功取得 ${Object.keys(results).length}/${symbols.length} 筆報價`);
+        return results;
+
+    } catch(e) {
+        // 網路錯誤 (CORS / 離線 / timeout)
+        const isCors = e.message.includes('fetch') || e.message === 'Failed to fetch';
+        console.error('[FMP API] 網路請求失敗:', e.message);
+        isUsingMockData = true;
+        authError = false;
+        lastApiError = isCors ? 'CORS 錯誤 — 請從 localhost 開啟頁面' : `網路錯誤：${e.message}`;
+        showToast(isCors ? '⚠️ CORS 錯誤：請用 start.bat 啟動後再試' : '無法連線至 FMP API，已切換為模擬數據', 'warn');
+        return generateMockData(symbols);
+    }
+}
+
+// 單筆查詢備援（避免批次被限制）
+async function fetchIndividually(symbols, apiKey) {
+    const results = {};
+    // 每次最多查 5 個，避免過多請求
+    const chunks = [];
+    for (let i = 0; i < symbols.length; i += 5) chunks.push(symbols.slice(i, i+5));
+    for (const chunk of chunks) {
+        try {
+            const url = `https://financialmodelingprep.com/api/v3/quote/${chunk.join(',')}?apikey=${apiKey}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (Array.isArray(data)) {
+                data.forEach(item => {
+                    if (item && item.symbol) {
+                        results[item.symbol] = { price:item.price??0, change:item.change??0, changePercent:item.changesPercentage??0 };
+                    }
+                });
+            }
+        } catch(e) { /* 單一 chunk 失敗跳過 */ }
+    }
+    if (Object.keys(results).length > 0) {
+        isUsingMockData = false; authError = false; lastApiError = null;
+        return results;
+    }
+    // 全部失敗才 fallback
+    isUsingMockData = true; authError = false;
+    return generateMockData(symbols);
+}
+
+// Toast 通知
+function showToast(msg, type='info') {
+    const colors = { error:'#ef4444', warn:'#f59e0b', info:'#3b82f6' };
+    const icons  = { error:'fa-circle-xmark', warn:'fa-triangle-exclamation', info:'fa-circle-info' };
+    const t = document.createElement('div');
+    t.innerHTML = `<i class="fas ${icons[type]}" style="margin-right:8px"></i>${msg}`;
+    Object.assign(t.style, {
+        position:'fixed', bottom:'24px', left:'50%', transform:'translateX(-50%)',
+        background:'rgba(15,25,40,0.95)', border:`1px solid ${colors[type]}40`,
+        color:colors[type], padding:'12px 20px', borderRadius:'10px', fontSize:'0.82rem',
+        backdropFilter:'blur(12px)', zIndex:'9999', boxShadow:`0 4px 20px ${colors[type]}30`,
+        transition:'opacity 0.4s', whiteSpace:'nowrap', maxWidth:'90vw'
+    });
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity='0'; setTimeout(()=>t.remove(), 400); }, 4000);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   FLOW TAG LOGIC (compare vs SPY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function getFlowTag(symbol, changePercent) {
+    if (symbol === 'SPY') return { label:'基準', cls:'flow-neutral' };
+    const spyPct = (marketData['SPY']||{}).changePercent || 0;
+    const diff = changePercent - spyPct;
+    if (diff > 0.3)  return { label:'▲ 資金流入', cls:'flow-in'  };
+    if (diff < -0.3) return { label:'▼ 資金流出', cls:'flow-out' };
+    return { label:'— 中性', cls:'flow-neutral' };
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   DASHBOARD RENDERING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function renderDashboard() {
+    const all = etfList.map(e => ({ ...e, ...(marketData[e.symbol]||{price:0,change:0,changePercent:0}) }));
+    const sorted = [...all].sort((a,b) => b.changePercent - a.changePercent);
+    const maxAbs = Math.max(...sorted.map(s => Math.abs(s.changePercent)), 0.01);
+
+    // Top 5
+    const top5 = sorted.slice(0,5);
+    document.getElementById('top5-list').innerHTML = top5.map((e,i) => `
+        <div class="rank-item" onclick="openModal('${e.symbol}')" style="cursor:pointer">
+            <span class="rank-num">${i+1}</span>
+            <span class="rank-symbol" style="color:${e.iconColor}">${e.symbol}</span>
+            <div class="rank-bar-wrap"><div class="rank-bar" style="width:${(e.changePercent/maxAbs)*100}%;background:linear-gradient(90deg,rgba(16,185,129,0.5),#10b981)"></div></div>
+            <span class="rank-pct" style="color:#34d399">+${e.changePercent.toFixed(2)}%</span>
+        </div>`).join('');
+
+    // Bottom 5
+    const bot5 = sorted.slice(-5).reverse();
+    document.getElementById('bot5-list').innerHTML = bot5.map((e,i) => `
+        <div class="rank-item" onclick="openModal('${e.symbol}')" style="cursor:pointer">
+            <span class="rank-num">${i+1}</span>
+            <span class="rank-symbol" style="color:${e.iconColor}">${e.symbol}</span>
+            <div class="rank-bar-wrap"><div class="rank-bar" style="width:${(Math.abs(e.changePercent)/maxAbs)*100}%;background:linear-gradient(90deg,rgba(239,68,68,0.5),#ef4444)"></div></div>
+            <span class="rank-pct" style="color:#f87171">${e.changePercent.toFixed(2)}%</span>
+        </div>`).join('');
+
+    // Sentiment Gauge
+    const bullCount = all.filter(e => e.changePercent >= 0).length;
+    const bearCount = all.length - bullCount;
+    const score = Math.round((bullCount/all.length)*100);
+    document.getElementById('bull-count').textContent = bullCount;
+    document.getElementById('bear-count').textContent = bearCount;
+    document.getElementById('gauge-score').textContent = score;
+    const labels = score >= 70 ? ['極度多頭 🚀','#34d399'] : score >= 55 ? ['偏多','#4ade80'] : score <= 30 ? ['極度空頭 📉','#f87171'] : score <= 45 ? ['偏空','#fb923c'] : ['中性 ⚖️','#f59e0b'];
+    document.getElementById('gauge-label').textContent = labels[0];
+    document.getElementById('gauge-score').style.color = labels[1];
+    // Animate gauge
+    const arcLen = 251;
+    const offset = arcLen - (score/100)*arcLen;
+    document.getElementById('gauge-fill').style.strokeDashoffset = offset;
+    const angle = (score/100)*180 - 90;
+    document.getElementById('gauge-needle').style.transform = `rotate(${angle}deg)`;
+
+    // Sector Heatmap
+    const catAvg = categoryDefs.map(cat => {
+        const etfs = all.filter(e => e.category === cat.id);
+        const avg = etfs.length ? etfs.reduce((s,e)=>s+e.changePercent,0)/etfs.length : 0;
+        return { ...cat, avg, etfs };
+    }).sort((a,b) => b.avg - a.avg);
+    const maxCatAbs = Math.max(...catAvg.map(c=>Math.abs(c.avg)), 0.01);
+    const cc = categoryColors;
+    document.getElementById('sector-heat-list').innerHTML = catAvg.map(cat => {
+        const pct = cat.avg;
+        const isPos = pct >= 0;
+        const barW = Math.abs(pct)/maxCatAbs*100;
+        const barColor = isPos ? 'linear-gradient(90deg,rgba(16,185,129,0.4),#10b981)' : 'linear-gradient(90deg,rgba(239,68,68,0.4),#ef4444)';
+        const pctStr = (isPos?'+':'')+pct.toFixed(2)+'%';
+        const pctColor = isPos ? '#34d399' : '#f87171';
+        return `<div class="sector-heat-item">
+            <span class="sector-heat-label" style="color:${cc[cat.id]?.text||'#94a3b8'}"><i class="fas ${cat.icon} mr-1" style="font-size:10px"></i>${cat.title}</span>
+            <div class="sector-heat-bar-wrap"><div class="sector-heat-bar" style="width:${barW}%;background:${barColor}"></div></div>
+            <span class="sector-heat-pct" style="color:${pctColor}">${pctStr}</span>
+        </div>`;
+    }).join('');
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ETF CARD RENDERING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function renderEtfCard(etf) {
+    const data = marketData[etf.symbol] || { price:0, change:0, changePercent:0 };
+    const isPos = data.changePercent >= 0;
+    const sign = isPos ? '+' : '';
+    const pillCls = Math.abs(data.changePercent)<0.01 ? 'flat-pill' : isPos ? 'up-pill' : 'down-pill';
+    const pillIcon = isPos ? 'fa-caret-up' : 'fa-caret-down';
+    const flow = getFlowTag(etf.symbol, data.changePercent);
+
+    appendSparklinePoint(etf.symbol, data.changePercent);
+    const sparkSVG = renderSparklineSVG(etf.symbol, isPos);
+
+    // Simulated relative volume (0.4 – 1.6)
+    const relVol = 0.4 + Math.random()*1.2;
+    const volW = Math.min(relVol, 1.6)/1.6*100;
+    const volColor = relVol > 1.1 ? '#60a5fa' : relVol < 0.7 ? '#475569' : '#64748b';
+
+    const glowColor = isPos ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.25)';
+    const borderGlow = isPos ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.3)';
+
+    return `<div class="etf-card" id="card-${etf.symbol}"
+                style="--card-glow:${glowColor};--card-border-glow:${borderGlow}"
+                onclick="openModal('${etf.symbol}')">
+        <div class="card-bg-icon"><i class="fas ${etf.icon}" style="color:${etf.iconColor}"></i></div>
+        <div class="card-top">
+            <div class="card-icon-wrap"><i class="fas ${etf.icon}" style="color:${etf.iconColor}"></i></div>
+            <div class="card-symbol-block">
+                <div class="card-symbol">${etf.symbol}</div>
+                <div class="card-name" title="${etf.name}">${etf.name}</div>
+            </div>
+            <span class="flow-tag ${flow.cls}">${flow.label}</span>
+        </div>
+        <div class="card-price-row">
+            <div class="card-price num-anim">$${data.price.toFixed(2)}</div>
+            <div class="card-change-pill ${pillCls}">
+                <i class="fas ${pillIcon}"></i>
+                ${sign}${data.change.toFixed(2)} &nbsp;(${sign}${data.changePercent.toFixed(2)}%)
+            </div>
+        </div>
+        ${sparkSVG ? `<div class="sparkline-wrap">${sparkSVG}</div>` : ''}
+        <div class="vol-row">
+            <span class="vol-label">成交</span>
+            <div class="vol-bar-wrap"><div class="vol-bar" style="width:${volW}%;background:${volColor}"></div></div>
+            <span class="vol-val">${relVol.toFixed(1)}x</span>
+        </div>
+    </div>`;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   MAIN UI UPDATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function updateUI() {
+    renderDashboard();
+    document.getElementById('dashboard-section').style.display = 'grid';
+
+    const wrap = document.getElementById('categories-wrap');
+    wrap.innerHTML = '';
+
+    categoryDefs.forEach((cat, catIdx) => {
+        const etfs = etfList.filter(e => e.category === cat.id);
+        if (!etfs.length) return;
+        const cc = categoryColors[cat.id];
+        const sectionEl = document.createElement('section');
+        sectionEl.className = 'etf-section';
+        sectionEl.innerHTML = `
+            <div class="section-header">
+                <div class="section-icon" style="background:${cc.bg};border:1px solid ${cc.border}">
+                    <i class="fas ${cat.icon}" style="color:${cc.text}"></i>
+                </div>
+                <div>
+                    <div class="section-title" style="color:${cc.text}">${cat.title}</div>
+                    <div class="section-subtitle">${etfs.length} 個 ETF</div>
+                </div>
+            </div>
+            <div class="etf-grid">${etfs.map(e => renderEtfCard(e)).join('')}</div>
+        `;
+        wrap.appendChild(sectionEl);
+        // staggered appear animation
+        setTimeout(() => sectionEl.classList.add('visible'), catIdx * 80);
+    });
+
+    document.getElementById('loading-screen').style.display = 'none';
+    wrap.style.display = 'flex';
+
+    // Connection status
+    updateConnectionStatus();
+}
+
+function updateConnectionStatus() {
+    const wrap = document.getElementById('conn-status-wrap');
+    if (authError) {
+        const tip = lastApiError ? `API 錯誤：${lastApiError}` : '點擊設定有效的 API Key';
+        wrap.innerHTML = `<span class="conn-badge conn-error" onclick="openApiKeyModal()" title="${tip}" style="cursor:pointer"><i class="fas fa-key"></i> Key 無效・點擊修正</span>`;
+    } else if (isUsingMockData) {
+        const tip = lastApiError || '網路連線問題，顯示模擬數據';
+        wrap.innerHTML = `<span class="conn-badge conn-mock" title="${tip}"><i class="fas fa-triangle-exclamation"></i> 模擬數據</span>`;
+    } else {
+        wrap.innerHTML = `<span class="conn-badge conn-live"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#34d399;animation:pulse-dot 2s ease infinite"></span>&nbsp;即時報價</span>`;
+    }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   FETCH ALL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+async function fetchAllData() {
+    document.getElementById('loading-screen').style.display = 'flex';
+    document.getElementById('categories-wrap').style.display = 'none';
+    document.getElementById('dashboard-section').style.display = 'none';
+    const symbols = etfList.map(e => e.symbol);
+    marketData = await fetchRealTimeQuote(symbols);
+    updateUI();
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SOFT REFRESH (no full reload flicker)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+async function softRefresh() {
+    const symbols = etfList.map(e => e.symbol);
+    marketData = await fetchRealTimeQuote(symbols);
+    renderDashboard();
+    etfList.forEach(etf => {
+        const card = document.getElementById(`card-${etf.symbol}`);
+        if (!card) return;
+        const data = marketData[etf.symbol] || {};
+        const isPos = (data.changePercent||0) >= 0;
+        const sign = isPos ? '+' : '';
+        const pillCls = Math.abs(data.changePercent||0)<0.01 ? 'flat-pill' : isPos ? 'up-pill' : 'down-pill';
+        const pillIcon = isPos ? 'fa-caret-up' : 'fa-caret-down';
+        const flow = getFlowTag(etf.symbol, data.changePercent||0);
+
+        appendSparklinePoint(etf.symbol, data.changePercent||0);
+        const sparkSVG = renderSparklineSVG(etf.symbol, isPos);
+
+        const priceEl = card.querySelector('.card-price');
+        if (priceEl) { priceEl.textContent = `$${(data.price||0).toFixed(2)}`; priceEl.style.transition = 'color 0.3s'; priceEl.style.color = isPos ? '#34d399' : '#f87171'; setTimeout(()=>priceEl.style.color='', 600); }
+        const pillEl = card.querySelector('.card-change-pill');
+        if (pillEl) { pillEl.className = `card-change-pill ${pillCls}`; pillEl.innerHTML = `<i class="fas ${pillIcon}"></i> ${sign}${(data.change||0).toFixed(2)} &nbsp;(${sign}${(data.changePercent||0).toFixed(2)}%)`; }
+        const flowEl = card.querySelector('.flow-tag');
+        if (flowEl) { flowEl.className = `flow-tag ${flow.cls}`; flowEl.textContent = flow.label; }
+        const sparkWrap = card.querySelector('.sparkline-wrap');
+        if (sparkWrap && sparkSVG) sparkWrap.innerHTML = sparkSVG;
+        card.style.setProperty('--card-glow', isPos ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.25)');
+        card.style.setProperty('--card-border-glow', isPos ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.3)');
+    });
+    updateConnectionStatus();
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   MODAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function openModal(symbol) {
+    const etf = etfList.find(e => e.symbol === symbol);
+    const data = marketData[symbol] || { price:0, change:0, changePercent:0 };
+    if (!etf) return;
+    const isPos = data.changePercent >= 0;
+    const sign = isPos ? '+' : '';
+    const pillCls = Math.abs(data.changePercent)<0.01 ? 'flat-pill' : isPos ? 'up-pill' : 'down-pill';
+    const pillIcon = isPos ? 'fa-caret-up' : 'fa-caret-down';
+
+    document.getElementById('modal-icon-wrap').innerHTML = `<i class="fas ${etf.icon}" style="color:${etf.iconColor}"></i>`;
+    document.getElementById('modal-symbol').textContent = etf.symbol;
+    document.getElementById('modal-symbol').style.color = etf.iconColor;
+    document.getElementById('modal-name').textContent = etf.name;
+    document.getElementById('modal-price').textContent = `$${data.price.toFixed(2)}`;
+    document.getElementById('modal-price').style.color = isPos ? '#34d399' : '#f87171';
+    const changeBadge = document.getElementById('modal-change-badge');
+    changeBadge.className = `card-change-pill ${pillCls}`;
+    changeBadge.innerHTML = `<i class="fas ${pillIcon}"></i> ${sign}${data.changePercent.toFixed(2)}%`;
+
+    // Stats
+    document.getElementById('modal-change-abs').textContent = `${sign}$${data.change.toFixed(2)}`;
+    document.getElementById('modal-change-abs').style.color = isPos ? '#34d399' : '#f87171';
+    const spyPct = (marketData['SPY']||{}).changePercent || 0;
+    const diff = data.changePercent - spyPct;
+    document.getElementById('modal-vs-spy').textContent = `${diff>=0?'+':''}${diff.toFixed(2)}%`;
+    document.getElementById('modal-vs-spy').style.color = diff>=0 ? '#34d399' : '#f87171';
+    const flow = getFlowTag(symbol, data.changePercent);
+    document.getElementById('modal-flow').textContent = flow.label.replace('▲ ','').replace('▼ ','').replace('— ','');
+    document.getElementById('modal-flow').style.color = flow.cls==='flow-in' ? '#34d399' : flow.cls==='flow-out' ? '#f87171' : '#94a3b8';
+
+    const allSorted = [...etfList].sort((a,b)=>(marketData[b.symbol]||{changePercent:0}).changePercent-(marketData[a.symbol]||{changePercent:0}).changePercent);
+    const rank = allSorted.findIndex(e=>e.symbol===symbol)+1;
+    document.getElementById('modal-rank').textContent = `第 ${rank} / ${etfList.length} 名`;
+    document.getElementById('modal-rank').style.color = rank <= 5 ? '#34d399' : rank >= etfList.length-4 ? '#f87171' : '#94a3b8';
+
+    // Holdings
+    const body = document.getElementById('holdings-body');
+    body.innerHTML = etf.holdings.map((h,i) => `
+        <tr style="animation-delay:${i*60}ms">
+            <td class="td-symbol" style="color:${etf.iconColor}">${h.symbol}</td>
+            <td style="color:var(--text-secondary)">${h.name}</td>
+            <td class="td-weight" style="text-align:right">${h.weight}</td>
+        </tr>`).join('');
+
+    document.getElementById('modal-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+function closeModal() {
+    document.getElementById('modal-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+}
+function handleModalBackdropClick(e) { if(e.target===document.getElementById('modal-backdrop')) closeModal(); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   API KEY MODAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function openApiKeyModal() {
+    const inp = document.getElementById('apikey-input');
+    inp.value = localStorage.getItem('fmp_api_key') || '';
+    document.getElementById('apikey-backdrop').classList.add('open');
+    setTimeout(()=>inp.focus(), 300);
+}
+function closeApiKeyModal() { document.getElementById('apikey-backdrop').classList.remove('open'); }
+function handleApiBackdropClick(e) { if(e.target===document.getElementById('apikey-backdrop')) closeApiKeyModal(); }
+function saveApiKey() {
+    const k = document.getElementById('apikey-input').value.trim();
+    if (k) localStorage.setItem('fmp_api_key', k); else localStorage.removeItem('fmp_api_key');
+    closeApiKeyModal();
+    fetchAllData();
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   KEYBOARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeModal(); closeApiKeyModal(); }
+});
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   INIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+window.addEventListener('DOMContentLoaded', () => {
+    // 偵測 file:// 協議並顯示警告
+    if (IS_FILE_PROTOCOL) {
+        // 在 API Key modal 裡顯示 CORS 說明
+        const corsWarn = document.getElementById('cors-warning');
+        if (corsWarn) corsWarn.style.display = 'block';
+
+        // 頁面頂部顯示橫幅提示
+        const banner = document.createElement('div');
+        banner.innerHTML = `
+            <div style="position:fixed;top:0;left:0;right:0;z-index:300;background:rgba(245,158,11,0.15);border-bottom:1px solid rgba(245,158,11,0.4);
+                        padding:10px 20px;display:flex;align-items:center;justify-content:center;gap:14px;font-size:0.8rem;backdrop-filter:blur(10px)">
+                <i class="fas fa-triangle-exclamation" style="color:#fbbf24"></i>
+                <span style="color:#fde68a">目前以 <code style="background:rgba(0,0,0,0.3);padding:1px 5px;border-radius:3px">file://</code> 開啟，API 無法使用。請執行
+                <strong style="color:#fbbf24">start.bat</strong> 啟動本機伺服器，再至 
+                <a href="http://localhost:8080" style="color:#60a5fa;font-weight:600">http://localhost:8080</a> 開啟</span>
+                <button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1rem;padding:0 4px">✕</button>
+            </div>`;
+        document.body.prepend(banner);
+        // 讓 main-wrapper 往下移，避免被 banner 遮住
+        document.querySelector('.main-wrapper').style.paddingTop = '72px';
+    }
+
+    setInterval(updateClock, 1000);
+    updateClock();
+    fetchAllData();
+    // Soft refresh every 60 seconds (no flash)
+    setInterval(softRefresh, 60000);
+});
+</script>
+</body>
+</html>
